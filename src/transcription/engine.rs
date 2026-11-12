@@ -412,7 +412,7 @@ type Held = Arc<Mutex<Option<crate::transcription::models::TranscriptionSelectio
 /// A live stream for one capture. Feed it the capture's 16 kHz audio in order,
 /// then either [`TranscriptionEngine::finish`] or drop it to cancel.
 pub struct LiveStream {
-    gateway: Option<super::gateway::Stream>,
+    gateway: Option<Box<super::gateway::Stream>>,
     id: u64,
     cancel: CancelToken,
     fed: usize,
@@ -659,7 +659,7 @@ impl TranscriptionEngine {
         if crate::labs::vercel_transcription() {
             let partials = (self.live_text)().then(Partials::default);
             return Some(LiveStream {
-                gateway: Some(super::gateway::Stream::begin(partials.clone())),
+                gateway: Some(Box::new(super::gateway::Stream::begin(partials.clone()))),
                 id: 0,
                 cancel: CancelToken::new(),
                 fed: 0,
@@ -769,12 +769,12 @@ impl TranscriptionEngine {
                 }
                 gateway => {
                     drop(gateway);
-                    super::gateway::Stream::with_audio(None, clip.clone())
+                    Box::new(super::gateway::Stream::with_audio(None, clip.clone()))
                 }
             };
             let (_, reply) = mpsc::channel();
             return Ok(PendingTranscript {
-                gateway: Some(gateway.finish()),
+                gateway: Some((*gateway).finish()),
                 reply,
                 cancel: CancelToken::new(),
                 stream_cancel: None,
