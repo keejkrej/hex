@@ -23,6 +23,7 @@ enum Input {
 }
 
 pub(crate) struct Stream {
+    boundary: AudioBoundary,
     input: SyncSender<Input>,
     result: Option<Receiver<Result<String, String>>>,
     cancel: Arc<AtomicBool>,
@@ -62,13 +63,19 @@ impl Stream {
             cancel.store(true, Ordering::Release);
         }
         Self {
+            boundary: AudioBoundary::default(),
             input,
             result: Some(result),
             cancel,
         }
     }
 
-    pub(crate) fn feed(&self, samples: &[f32]) {
+    pub(crate) fn feed(&mut self, samples: &[f32]) {
+        let ready = self.boundary.feed(samples);
+        self.send(&ready);
+    }
+
+    fn send(&self, samples: &[f32]) {
         // At most about ten seconds queue behind a slow network. A full
         // queue fails this capture instead of blocking or losing words.
         for chunk in samples.chunks(2560) {
@@ -79,7 +86,14 @@ impl Stream {
         }
     }
 
+    pub(crate) fn finish_clip(mut self, clip: &[f32]) -> Option<Pending> {
+        self.boundary.pending = self.boundary.remaining(clip)?.to_vec();
+        Some(self.finish())
+    }
+
     pub(crate) fn finish(mut self) -> Pending {
+        let tail = std::mem::take(&mut self.boundary.pending);
+        self.send(&tail);
         if self.input.try_send(Input::Finish).is_err() {
             self.cancel.store(true, Ordering::Release);
         }
@@ -284,6 +298,28 @@ impl Transcript {
     }
 }
 
+/// Projects capture feeds onto the exact final clip without replaying audio.
+#[derive(Default)]
+struct AudioBoundary {
+    pending: Vec<f32>,
+    sent: usize,
+}
+impl AudioBoundary {
+    fn feed(&mut self, samples: &[f32]) -> Vec<f32> {
+        // Match the engine's 250 ms release-trimming allowance. Keep that
+        // small tail unsent so a slightly delayed release can trim it without
+        // opening another connection and retranscribing the entire recording.
+        const TAIL: usize = 16_000 / 4;
+        self.pending.extend_from_slice(samples);
+        let ready = self.pending.len().saturating_sub(TAIL);
+        self.sent += ready;
+        self.pending.drain(..ready).collect()
+    }
+    fn remaining<'a>(&self, clip: &'a [f32]) -> Option<&'a [f32]> {
+        clip.get(self.sent..)
+    }
+}
+
 /// Stateful 16 -> 24 kHz linear interpolation, independent of feed boundaries.
 #[derive(Default)]
 struct Pcm {
@@ -321,6 +357,26 @@ impl Pcm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_slightly_late_release_keeps_the_existing_gateway_connection() {
+        let captured: Vec<f32> = (0..9600).map(|i| i as f32).collect();
+        let final_clip = &captured[..9300];
+        let mut boundary = AudioBoundary::default();
+        let mut sent = boundary.feed(&captured);
+        let tail = boundary
+            .remaining(final_clip)
+            .expect("ordinary release trimming must not reopen and retranscribe the whole clip");
+        sent.extend_from_slice(tail);
+        assert_eq!(sent, final_clip);
+    }
+
+    #[test]
+    fn a_release_before_already_sent_audio_still_requires_replay() {
+        let mut boundary = AudioBoundary::default();
+        boundary.feed(&[0.0; 16000]);
+        assert!(boundary.remaining(&[0.0; 8000]).is_none());
+    }
+
     #[test]
     fn resampling_is_independent_of_chunk_boundaries() {
         let samples: Vec<f32> = (0..16000).map(|i| (i as f32 * 0.01).sin()).collect();
@@ -372,12 +428,13 @@ mod tests {
         let (input, _audio) = mpsc::sync_channel(1);
         let (_reply, result) = mpsc::channel();
         let cancel = Arc::new(AtomicBool::new(false));
-        let stream = Stream {
+        let mut stream = Stream {
+            boundary: AudioBoundary::default(),
             input,
             result: Some(result),
             cancel: cancel.clone(),
         };
-        stream.feed(&[0.0; 2560]);
+        stream.feed(&[0.0; 6560]);
         assert!(!cancel.load(Ordering::Acquire));
         stream.feed(&[0.0; 2560]);
         assert!(cancel.load(Ordering::Acquire));
@@ -389,6 +446,7 @@ mod tests {
         let (_reply, result) = mpsc::channel();
         let cancel = Arc::new(AtomicBool::new(false));
         let stream = Stream {
+            boundary: AudioBoundary::default(),
             input,
             result: Some(result),
             cancel: cancel.clone(),
@@ -402,6 +460,7 @@ mod tests {
         let (_reply, result) = mpsc::channel();
         let cancel = Arc::new(AtomicBool::new(false));
         drop(Stream {
+            boundary: AudioBoundary::default(),
             input,
             result: Some(result),
             cancel: cancel.clone(),
@@ -417,6 +476,40 @@ mod tests {
         assert!(!error.contains("private provider content"));
     }
     #[test]
+    #[ignore = "times a public JFK fixture through Vercel; requires AI_GATEWAY_API_KEY and HEX_GATEWAY_LATENCY_WAV"]
+    fn public_late_release_does_not_retranscribe_the_recording() {
+        let path = std::env::var("HEX_GATEWAY_LATENCY_WAV").expect("public JFK WAV path");
+        let mut wav = hound::WavReader::open(path).unwrap();
+        assert_eq!(wav.spec().sample_rate, 16000);
+        assert_eq!(wav.spec().channels, 1);
+        let samples: Vec<f32> = wav
+            .samples::<i16>()
+            .map(|s| s.unwrap() as f32 / 32768.0)
+            .collect();
+        let mut stream = Stream::begin(None);
+        for chunk in samples.chunks(1600) {
+            stream.feed(chunk);
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let released = Instant::now();
+        // The audio callback ran 100 ms past the authoritative release.
+        // This must keep the already-open connection, not upload it again.
+        let pending = stream
+            .finish_clip(&samples[..samples.len() - 1600])
+            .expect("ordinary release trimming must keep the live connection");
+        let text = pending.wait().unwrap().text.to_lowercase();
+        assert!(text.contains("country"));
+        println!(
+            "Public late-release fixture: final text in {} ms",
+            released.elapsed().as_millis()
+        );
+        assert!(
+            released.elapsed() < Duration::from_secs(2),
+            "release-to-text exceeded two seconds"
+        );
+    }
+
+    #[test]
     #[ignore = "sends a public fixture to the live Vercel gateway; requires AI_GATEWAY_API_KEY"]
     fn public_fixture_streams_through_gateway() {
         let path = std::env::var("HEX_GATEWAY_TEST_WAV").expect("public WAV fixture path");
@@ -428,7 +521,7 @@ mod tests {
             .map(|s| s.unwrap() as f32 / 32768.0)
             .collect();
         let partials = Partials::default();
-        let stream = Stream::begin(Some(partials));
+        let mut stream = Stream::begin(Some(partials));
         for chunk in samples.chunks(1600) {
             stream.feed(chunk);
             std::thread::sleep(Duration::from_millis(100));

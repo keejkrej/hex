@@ -15,7 +15,8 @@ Enable Labs › Vercel live transcription                 // dictate.gateway
 │   └── 16 kHz capture -> bounded worker -> 24 kHz PCM -> Vercel WebSocket
 │       └── GPT Live Transcribe deltas -> Labs › Live text, if on
 ├── Release -> exact final clip, including the normal release tail
-│   ├── Stream heard past that clip -> cancel it, replay only the final clip
+│   ├── Keep the last 250 ms unsent -> trim ordinary late releases without reconnecting
+│   ├── Stream already sent past the final clip -> cancel it, replay only that clip
 │   └── Final transcript -> existing corrections, processing, paste, and History
 ├── Programmatic recording -> submit its final clip through the same gateway
 ├── Cancel/short tap/chord discard -> cancel the worker; no output
@@ -58,3 +59,13 @@ passed. A process-isolated selection of 616 engine, Labs, settings, translation,
 and Rune UI tests passed; the Linux-authoritative capsule golden comparison was
 excluded from that Mac run. The new Labs card was rendered and reviewed in light
 and dark on macOS. No physical microphone, shortcut, or target paste was tested.
+
+Release latency: the stream retains 250 ms of audio until the final clip's exact
+boundary is known. Ordinary late releases trim that tail and keep the same
+connection; only audio already sent beyond the boundary requires replay. The
+regression `a_slightly_late_release_keeps_the_existing_gateway_connection` failed
+under eager feeding and passes with the retained tail. The ignored public JFK
+fixture `public_late_release_does_not_retranscribe_the_recording` checks the same
+trim against the live provider and measures release-to-final latency. Provider
+latency varies; a fast benchmark does not establish an upper bound for real
+networks or speech.

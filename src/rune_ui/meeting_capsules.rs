@@ -2172,6 +2172,7 @@ mod tests {
             ("ready", ready_transcript(), PANEL),
             ("auto-started", auto_started(), PANEL),
         ];
+        let mut misses = Vec::new();
         for ((name, kind, size), dark) in states
             .into_iter()
             .flat_map(|state| [false, true].map(|dark| (state.clone(), dark)))
@@ -2200,10 +2201,17 @@ mod tests {
                 .zip(golden.chunks(4))
                 .filter(|(a, b)| a.iter().zip(b.iter()).any(|(x, y)| x.abs_diff(*y) > 12))
                 .count();
-            assert!(
-                differing <= (w * h) as usize / 500,
-                "{name}-{theme}: {differing} pixels differ"
-            );
+            if differing > (w * h) as usize / 500 {
+                let actual = std::env::temp_dir().join(format!(
+                    "rune-settings-meeting-capsule-{name}-{theme}-actual.png"
+                ));
+                rune::render::write_png(&actual, w, h, &pixels).unwrap();
+                misses.push(format!(
+                    "{name}-{theme}: {differing} pixels differ; actual at {}",
+                    actual.display()
+                ));
+            }
         }
+        assert!(misses.is_empty(), "{}", misses.join("\n"));
     }
 }

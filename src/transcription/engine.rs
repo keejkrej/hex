@@ -447,7 +447,7 @@ impl LiveStream {
             return;
         }
         self.fed += samples.len();
-        if let Some(gateway) = &self.gateway {
+        if let Some(gateway) = &mut self.gateway {
             gateway.feed(samples);
             return;
         }
@@ -756,25 +756,22 @@ impl TranscriptionEngine {
         {
             // The final clip owns the boundaries. Reopen if capture fed past
             // its end, rather than letting words outside it enter the paste.
-            let mut fed = 0;
             let gateway = stream.and_then(|mut stream| {
                 stream.finished = true;
-                fed = stream.fed;
                 stream.gateway.take()
             });
-            let gateway = match gateway {
-                Some(gateway) if fed <= clip.len() => {
-                    gateway.feed(&clip[fed..]);
-                    gateway
-                }
-                gateway => {
-                    drop(gateway);
-                    Box::new(super::gateway::Stream::with_audio(None, clip.clone()))
-                }
-            };
+            let had_stream = gateway.is_some();
+            let pending = gateway.and_then(|gateway| (*gateway).finish_clip(&clip));
+            tracing::info!(
+                replayed = had_stream && pending.is_none(),
+                audio_samples = clip.len(),
+                "finishing gateway dictation"
+            );
+            let pending = pending
+                .unwrap_or_else(|| super::gateway::Stream::with_audio(None, clip.clone()).finish());
             let (_, reply) = mpsc::channel();
             return Ok(PendingTranscript {
-                gateway: Some((*gateway).finish()),
+                gateway: Some(pending),
                 reply,
                 cancel: CancelToken::new(),
                 stream_cancel: None,
