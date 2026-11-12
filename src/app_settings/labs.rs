@@ -74,6 +74,8 @@ pub struct LabsSettings {
     /// Names and terms shown in the focused window become temporary
     /// vocabulary for each dictation (macOS).
     pub screen_vocabulary: bool,
+    /// Stream dictation through Vercel AI Gateway instead of local inference.
+    pub vercel_transcription: bool,
     /// Mouse buttons may be recorded as shortcuts (macOS, issue 209).
     pub mouse_shortcuts: bool,
     /// The engine unloads the speech model after `unload_idle_minutes` (5, 15 default, 30, 60) unused (issue 442).
@@ -312,6 +314,7 @@ impl Default for LabsSettings {
             playground: false,
             vocabulary_biasing: false,
             screen_vocabulary: false,
+            vercel_transcription: false,
             mouse_shortcuts: false,
             unload_idle: false,
             unload_idle_minutes: 15,

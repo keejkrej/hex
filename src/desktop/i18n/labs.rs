@@ -5,6 +5,8 @@
 /// Columns: Polish, Chinese (Simplified), Japanese, German, Spanish, Ukrainian.
 #[rustfmt::skip]
 pub(super) const TRANSLATIONS: &[(&str, [&str; 6])] = &[
+    ("Vercel live transcription", ["Transkrypcja Vercel na żywo", "Vercel 实时转录", "Vercel ライブ文字起こし", "Vercel-Live-Transkription", "Transcripción en vivo con Vercel", "Транскрипція наживо через Vercel"]),
+    ("Stream dictation audio to OpenAI through Vercel AI Gateway. Requires a gateway key and internet.", ["Przesyłaj dźwięk dyktowania do OpenAI przez Vercel AI Gateway. Wymaga klucza bramy i internetu.", "通过 Vercel AI Gateway 将听写音频流式传输到 OpenAI。需要网关密钥和互联网连接。", "音声入力を Vercel AI Gateway 経由で OpenAI にストリーミングします。ゲートウェイキーとインターネット接続が必要です。", "Diktataudio über Vercel AI Gateway an OpenAI streamen. Benötigt einen Gateway-Schlüssel und Internet.", "Envía el audio del dictado a OpenAI mediante Vercel AI Gateway. Requiere una clave del gateway e internet.", "Передавайте аудіо диктування до OpenAI через Vercel AI Gateway. Потрібні ключ шлюзу й інтернет."]),
     ("Live text", ["Tekst na żywo", "实时文字", "ライブテキスト", "Live-Text", "Texto en vivo", "Текст наживо"]),
     ("Show provisional words beside the HUD while dictating", ["Pokazuj robocze słowa obok HUD-u podczas dyktowania", "听写时在 HUD 旁显示临时词语", "音声入力中に HUD の横に仮の語句を表示します", "Vorläufige Wörter beim Diktieren neben dem HUD zeigen", "Muestra palabras provisionales junto al HUD al dictar", "Показувати проміжні слова поруч із HUD під час диктування"]),
     ("Failure notices", ["Powiadomienia o błędach", "失败通知", "失敗のお知らせ", "Fehlerhinweise", "Avisos de fallo", "Сповіщення про збої"]),

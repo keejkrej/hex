@@ -15,6 +15,8 @@ pub(super) fn table() -> &'static HashMap<&'static str, &'static str> {
 
 #[rustfmt::skip]
 const TRANSLATIONS: &[(&str, &str)] = &[
+    ("Vercel live transcription", "Transcrição ao vivo com Vercel"),
+    ("Stream dictation audio to OpenAI through Vercel AI Gateway. Requires a gateway key and internet.", "Transmita o áudio do ditado para a OpenAI pelo Vercel AI Gateway. Requer uma chave do gateway e internet."),
     ("Voice prompt", "Instrução por voz"),
     ("Copy captures as a zip", "Copiar capturas como zip"),
     ("A finished capture copies as one zip file, without video or audio.", "Uma captura concluída é copiada como um único arquivo zip, sem vídeo e áudio"),

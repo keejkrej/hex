@@ -110,6 +110,7 @@ pub enum TranscriptionTarget {
 }
 
 struct InferenceJob {
+    model: Option<String>,
     job_id: DictationJobId,
     control: Arc<JobControl>,
     submitted_at: Instant,
@@ -128,6 +129,7 @@ struct InferenceJob {
 }
 
 struct ProcessorJob {
+    model: Option<String>,
     job_id: DictationJobId,
     control: Arc<JobControl>,
     target: TranscriptionTarget,
@@ -150,6 +152,7 @@ struct JobTimings {
 }
 
 struct CompletedTranscript {
+    model: Option<String>,
     text: String,
     /// Labs › Voice prompt asked for nothing: finish without output even if
     /// some later stage left text behind.
@@ -452,7 +455,9 @@ impl DictationWorker {
         // (before the window was read); a model that ignores them keeps it.
         let screen_terms = context.screen_terms.clone();
         let keeps_stream = screen_terms.is_empty() || !crate::dictation::vocabulary::uses_terms();
-        let stream = clip.take_stream().filter(|_| keeps_stream);
+        let stream = clip
+            .take_stream()
+            .filter(|stream| stream.is_gateway() || keeps_stream);
         let _capture = clip.take_capture_marker();
         let samples = clip.into_transcription_samples();
         crate::dictation::diagnostics::persist(&samples);
@@ -481,6 +486,7 @@ impl DictationWorker {
             .finish_with(stream, samples, offline)
             .map_err(|_| "dictation worker is unavailable")?;
         jobs.try_send(InferenceJob {
+            model: crate::history::dictation_model(),
             job_id,
             control: control.clone(),
             submitted_at,
@@ -678,6 +684,7 @@ fn run_processor_worker(
                 control: job.control,
                 target: job.target,
                 result: Box::new(Ok(CompletedTranscript {
+                    model: job.model,
                     text: processed.text,
                     nothing: processed.nothing,
                     raw: job.text,
@@ -892,6 +899,7 @@ fn run_inference_worker(
             {
                 if processor_jobs
                     .send(ProcessorJob {
+                        model: job.model,
                         job_id: job.job_id,
                         control: job.control,
                         target,
@@ -911,6 +919,7 @@ fn run_inference_worker(
                 let application = job.context.application;
                 let recording = job.recording;
                 let result = result.map(|text| CompletedTranscript {
+                    model: job.model,
                     raw: text.clone(),
                     text,
                     nothing: false,
@@ -1219,7 +1228,7 @@ fn record_history(
         inference_ms: completed.timings.inference_ms as u64,
         total_ms: completed.timings.total_started.elapsed().as_millis() as u64,
         recording: completed.recording.take(),
-        model: crate::history::dictation_model(),
+        model: completed.model.clone(),
     };
     if let Err(error) = history.record(draft) {
         tracing::warn!(%error, "could not record dictation history");
@@ -1481,6 +1490,7 @@ mod tests {
 
     fn processing_job(target: TranscriptionTarget) -> ProcessorJob {
         ProcessorJob {
+            model: None,
             job_id: DictationJobId(0),
             control: Arc::new(JobControl::default()),
             target,
@@ -1606,6 +1616,7 @@ mod tests {
                 control: Arc::new(JobControl::default()),
                 target: TranscriptionTarget::Paste,
                 result: Box::new(Ok(CompletedTranscript {
+                    model: None,
                     text: text.into(),
                     nothing: false,
                     raw: text.into(),
@@ -1662,6 +1673,7 @@ mod tests {
                     control: Arc::new(JobControl::default()),
                     target,
                     result: Box::new(Ok(CompletedTranscript {
+                        model: None,
                         text: text.into(),
                         nothing: false,
                         raw: text.into(),

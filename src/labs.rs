@@ -103,6 +103,7 @@ impl Feature {
             | Self::LiveChapters
             | Self::VocabularyBiasing
             | Self::ScreenVocabulary
+            | Self::VercelTranscription
             | Self::TerminalPaste
             | Self::KeyboardModelSwitching
             | Self::AppModelSwitching
@@ -250,7 +251,10 @@ impl Feature {
             | Self::PauseMenu
             | Self::HistoryMultiSelect => 20261110,
             Self::KeepMicrophoneOpen | Self::PrintStart => 20261111,
-            Self::ScreenVocabulary | Self::VoicePrompt | Self::CopyCaptureZip => 20261112,
+            Self::ScreenVocabulary
+            | Self::VoicePrompt
+            | Self::CopyCaptureZip
+            | Self::VercelTranscription => 20261112,
         }
     }
 
@@ -344,6 +348,7 @@ impl Feature {
                 }
             }
             Self::Playground
+            | Self::VercelTranscription
             | Self::LiveText
             | Self::FailureNotices
             | Self::SecondDictationShortcut
@@ -395,6 +400,7 @@ impl Feature {
             Self::LiveTyping => "live-typing",
             Self::LiveChapters => "live-chapters",
             Self::VocabularyBiasing => "vocabulary-biasing",
+            Self::VercelTranscription => "vercel-transcription",
             Self::ScreenVocabulary => "screen-vocabulary",
             Self::TerminalPaste => "terminal-paste",
             Self::KeyboardModelSwitching => "keyboard-model-switching",
@@ -479,6 +485,7 @@ impl Feature {
             Self::LiveTyping => "labs.live_typing",
             Self::LiveChapters => "labs.live_chapters",
             Self::VocabularyBiasing => "labs.vocabulary_biasing",
+            Self::VercelTranscription => "labs.vercel_transcription",
             Self::ScreenVocabulary => "labs.screen_vocabulary",
             Self::TerminalPaste => "paste_with_shift",
             Self::KeyboardModelSwitching => "keyboard_model_switching.enabled",
@@ -567,6 +574,7 @@ impl Feature {
             Self::LiveTyping => settings.labs.live_typing,
             Self::LiveChapters => settings.labs.live_chapters,
             Self::VocabularyBiasing => settings.labs.vocabulary_biasing,
+            Self::VercelTranscription => settings.labs.vercel_transcription,
             Self::ScreenVocabulary => settings.labs.screen_vocabulary,
             Self::TerminalPaste => settings.paste_with_shift,
             Self::KeyboardModelSwitching => settings.keyboard_model_switching.enabled,
@@ -657,6 +665,7 @@ impl Feature {
             &mut labs.live_typing,
             &mut labs.live_chapters,
             &mut labs.vocabulary_biasing,
+            &mut labs.vercel_transcription,
             &mut labs.screen_vocabulary,
             &mut labs.mouse_shortcuts,
             &mut labs.unload_idle,
@@ -741,6 +750,7 @@ impl Feature {
             Self::LiveTyping => settings.labs.live_typing = on,
             Self::LiveChapters => settings.labs.live_chapters = on,
             Self::VocabularyBiasing => settings.labs.vocabulary_biasing = on,
+            Self::VercelTranscription => settings.labs.vercel_transcription = on,
             Self::ScreenVocabulary => settings.labs.screen_vocabulary = on,
             Self::TerminalPaste => settings.paste_with_shift = on,
             Self::KeyboardModelSwitching => settings.keyboard_model_switching.enabled = on,
@@ -940,6 +950,8 @@ static PRINT_START: AtomicBool = AtomicBool::new(false);
 /// Labs › Screen vocabulary's switch, set beside [`STATE`] like [`PRINT_START`]:
 /// that lab reads the focused window once per dictation and has its own
 /// atomic because the state word is full.
+static VERCEL_TRANSCRIPTION: AtomicBool = AtomicBool::new(false);
+
 static SCREEN_VOCABULARY: AtomicBool = AtomicBool::new(false);
 
 /// Labs › Voice prompt's switch: the state word is full too, so it has its
@@ -973,6 +985,7 @@ fn state() -> u64 {
                 // as off, and the next read is right.
                 MICROPHONE_LINGER_SECONDS.store(linger_seconds(&saved), Ordering::Release);
                 PRINT_START.store(print_start_enabled(&saved), Ordering::Release);
+                VERCEL_TRANSCRIPTION.store(vercel_transcription_enabled(&saved), Ordering::Release);
                 SCREEN_VOCABULARY.store(screen_vocabulary_enabled(&saved), Ordering::Release);
                 VOICE_PROMPT.store(voice_prompt_enabled(&saved), Ordering::Release);
                 COPY_CAPTURE_ZIP.store(copy_capture_zip_enabled(&saved), Ordering::Release);
@@ -999,6 +1012,12 @@ fn print_start_enabled(settings: &LabsSettings) -> bool {
 
 /// Whether `settings` turn on Labs › Screen vocabulary in this build, before
 /// its managed lock; the state word has no bit for it.
+fn vercel_transcription_enabled(settings: &LabsSettings) -> bool {
+    settings.vercel_transcription
+        && Feature::VercelTranscription.shipped()
+        && Feature::VercelTranscription.managed().is_none()
+}
+
 fn screen_vocabulary_enabled(settings: &LabsSettings) -> bool {
     settings.screen_vocabulary
         && Feature::ScreenVocabulary.shipped()
@@ -1053,6 +1072,7 @@ pub(crate) fn apply(settings: &LabsSettings) {
     STATE.store(encode(settings), Ordering::Release);
     MICROPHONE_LINGER_SECONDS.store(linger_seconds(settings), Ordering::Release);
     PRINT_START.store(print_start_enabled(settings), Ordering::Release);
+    VERCEL_TRANSCRIPTION.store(vercel_transcription_enabled(settings), Ordering::Release);
     SCREEN_VOCABULARY.store(screen_vocabulary_enabled(settings), Ordering::Release);
     VOICE_PROMPT.store(voice_prompt_enabled(settings), Ordering::Release);
     COPY_CAPTURE_ZIP.store(copy_capture_zip_enabled(settings), Ordering::Release);
