@@ -24,7 +24,7 @@ Hex                                      // macOS release
 └── Maintain the app                     // menu bar, login, updates, quit
 ```
 
-[Dictation](dictation.md), [Meetings](meetings.md), and [Recovery](recovery.md)
+[Dictation](dictation.md), [cloud dictation](cloud-dictation.md), [Meetings](meetings.md), and [Recovery](recovery.md)
 have detailed maps.
 [Accessibility](accessibility.md) maps what screen readers, Voice Control, and
 automation (strobe's benches) read from the window, the HUD, and the capsules.

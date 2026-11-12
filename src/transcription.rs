@@ -11,6 +11,7 @@ pub(crate) mod cpu_floor;
 pub(crate) mod custom_models;
 pub(crate) mod engine;
 pub(crate) mod found_models;
+pub(crate) mod gateway;
 pub(crate) mod gguf_header;
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 pub(crate) mod gguf_session;

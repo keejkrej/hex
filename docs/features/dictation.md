@@ -1,6 +1,6 @@
 # Dictation
 
-Hold the configured shortcut, speak, and release. Hex transcribes locally and
+Hold the configured shortcut, speak, and release. Hex transcribes locally (or through [Vercel AI Gateway](cloud-dictation.md) when that lab is enabled) and
 inserts the result at the current focus. New captures do not cancel accepted
 work. Only Toggle mode has a cancel: its cancel shortcut, Escape by default,
 discards the recording (#786, #1022); every other intentional dictation

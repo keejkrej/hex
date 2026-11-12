@@ -219,6 +219,9 @@ pub struct HistoryDraft {
 /// The name of the speech model dictation runs: the one the engine holds,
 /// else the saved one (Apple Speech, which the engine never holds).
 pub fn dictation_model() -> Option<String> {
+    if crate::labs::vercel_transcription() {
+        return Some("GPT Live Transcribe (Vercel)".into());
+    }
     let selection = crate::transcription::engine::TranscriptionEngine::shared()
         .and_then(|engine| engine.held_selection())
         .unwrap_or_else(|| crate::app_settings::transcription_selection().1);

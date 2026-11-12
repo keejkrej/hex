@@ -442,3 +442,9 @@ pub fn microphone_linger() -> Option<std::time::Duration> {
         seconds => Some(std::time::Duration::from_secs(seconds)),
     }
 }
+
+/// Sends dictation audio to Vercel only after explicit opt-in.
+pub fn vercel_transcription() -> bool {
+    let _ = state();
+    VERCEL_TRANSCRIPTION.load(Ordering::Acquire) && Feature::VercelTranscription.on_this_os()
+}

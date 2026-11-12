@@ -12,6 +12,7 @@
 
 mod download;
 mod proxy;
+pub(crate) mod websocket;
 
 use std::time::Duration;
 

@@ -318,6 +318,11 @@ pub(super) const KEYS: &[Key] = &[
         "Labs: bias Parakeet transcription toward the vocabulary",
     ),
     key(
+        "labs.vercel_transcription",
+        Kind::Bool,
+        "Labs: stream dictation through Vercel AI Gateway using GPT Live Transcribe",
+    ),
+    key(
         "labs.screen_vocabulary",
         Kind::Bool,
         "Labs: use names and terms visible in the focused window as temporary vocabulary for each dictation (macOS)",

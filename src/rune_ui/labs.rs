@@ -608,6 +608,12 @@ fn rows(ui: &Ui) -> Vec<Row> {
         tr("Vocabulary biasing"),
         tr("Bias Parakeet transcription toward your vocabulary; rewriting and search use it either way"),
     ));
+    rows.push(row(
+        Feature::VercelTranscription,
+        Some(&BOOK),
+        tr("Vercel live transcription"),
+        tr("Stream dictation audio to OpenAI through Vercel AI Gateway. Requires a gateway key and internet."),
+    ));
     // macOS reads the focused window through Accessibility as a capture
     // becomes real.
     if caps.os == super::platform::Os::Macos {
@@ -1129,6 +1135,7 @@ fn row_key(lab: Lab) -> &'static str {
         Feature::LiveTyping => "lab-live-typing",
         Feature::LiveChapters => "lab-live-chapters",
         Feature::VocabularyBiasing => "lab-vocabulary-biasing",
+        Feature::VercelTranscription => "lab-vercel-transcription",
         Feature::ScreenVocabulary => "lab-screen-vocabulary",
         Feature::TerminalPaste => "lab-terminal-paste",
         Feature::KeyboardModelSwitching => "lab-keyboard-model-switching",

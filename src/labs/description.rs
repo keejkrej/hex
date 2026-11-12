@@ -22,6 +22,9 @@ impl Feature {
             Self::VocabularyBiasing => {
                 "Bias Parakeet transcription toward your vocabulary; rewriting and search use it either way"
             }
+            Self::VercelTranscription => {
+                "Stream dictation audio to GPT Live Transcribe through Vercel AI Gateway. Requires a gateway key and an internet connection."
+            }
             Self::ScreenVocabulary => {
                 "Window names and terms become temporary vocabulary. Read locally, never saved. Parakeet needs Vocabulary biasing, and a dictation with terms runs after release instead of from the live stream."
             }

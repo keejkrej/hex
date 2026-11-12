@@ -1,0 +1,86 @@
+# Cloud dictation
+
+Labs › Vercel live transcription (`labs.vercel_transcription`, off by default)
+replaces dictation's speech recognition with OpenAI's `gpt-live-transcribe`
+through Vercel AI Gateway. This sends dictation audio off the computer; it needs
+internet, gateway model access, and a configured gateway key. The existing local
+model remains installed and selected for other capabilities and when the lab is
+off. Meetings, Annotate word timestamps, file transcription, and host audio keep
+their existing local engines. This feature does not bypass onboarding's local
+model requirement.
+
+```ts
+Enable Labs › Vercel live transcription                 // dictate.gateway
+├── Hold the dictation shortcut -> intentional capture
+│   └── 16 kHz capture -> bounded worker -> 24 kHz PCM -> Vercel WebSocket
+│       └── GPT Live Transcribe deltas -> Labs › Live text, if on
+├── Release -> exact final clip, including the normal release tail
+│   ├── Keep the last 250 ms unsent -> trim ordinary late releases without reconnecting
+│   ├── Stream already sent past the final clip -> cancel it, replay only that clip
+│   └── Final transcript -> existing corrections, processing, paste, and History
+├── Programmatic recording -> submit its final clip through the same gateway
+├── Cancel/short tap/chord discard -> cancel the worker; no output
+└── Missing key / network failure / full queue / provider error / timeout
+    └── Fail with a bounded explanation; no local fallback and no partial paste
+```
+
+The key is read from `AI_GATEWAY_API_KEY`, or, for Finder/login launches that
+do not inherit shell variables, `<Application Support>/hex/gateway-api-key`.
+The latter is a plain UTF-8 key file separate from `settings.json`; on Unix it
+must be a regular file owned by the current user with mode `0600`. Provision it
+without putting its contents in commands, logs, version control, or screenshots.
+On Windows use the per-user Application Support ACL. The gateway owns the
+provider credentials; Hex only needs the gateway credential. Restart Hex after
+changing its environment. The file is read per connection.
+
+The native transport uses platform TLS verification and Hex's proxy selection.
+HTTP CONNECT proxies are supported; HTTPS/SOCKS proxies report an unsupported
+transport instead of being bypassed. Incoming frames are capped at 256 KiB and
+transcript text at 1 MiB; at most four connection workers may remain active.
+The audio queue holds about ten seconds and fails instead of blocking capture
+or silently dropping words. Finalization waits at most twenty seconds. Gateway
+session limits still apply; reconnection does not resume a recording. No
+focused-window text or screen vocabulary is sent to this provider. An enabled
+Screen vocabulary lab does not throw away this live stream to run Parakeet.
+
+Sources: `src/transcription/gateway.rs`, `src/net/websocket.rs`,
+`src/transcription/engine.rs`, `src/parakeet.rs`, `src/labs.rs`.
+
+Checks: `transcription::gateway::tests` covers chunk-invariant resampling,
+replacement of deltas by final text, and sanitized provider failures. The
+ignored `public_fixture_streams_through_gateway` sends a public Free Spoken
+Digit Dataset WAV through the native Rust transport with explicit credentials.
+A passing gateway fixture is a transport check, not a recognition-quality
+benchmark or proof of a physical shortcut, microphone, or target paste.
+
+Observed November 12, 2026 on macOS: the six gateway unit tests and the ignored
+public gateway fixture passed with the native Rust transport. Strict Clippy
+passed. A process-isolated selection of 616 engine, Labs, settings, translation,
+and Rune UI tests passed; the Linux-authoritative capsule golden comparison was
+excluded from that Mac run. The new Labs card was rendered and reviewed in light
+and dark on macOS. The user subsequently confirmed live text and pasted output from the installed
+gateway build, and reported high release latency; History metadata showed a
+5.6 s outlier before the retained-tail fix. No agent-operated physical device
+test was run.
+
+Release latency: the stream retains 250 ms of audio until the final clip's exact
+boundary is known. Ordinary late releases trim that tail and keep the same
+connection; only audio already sent beyond the boundary requires replay. The
+regression `a_slightly_late_release_keeps_the_existing_gateway_connection` failed
+under eager feeding and passes with the retained tail. The ignored public JFK
+fixture `public_late_release_does_not_retranscribe_the_recording` checks the same
+trim against the live provider and measures release-to-final latency. Provider
+latency varies; a fast benchmark does not establish an upper bound for real
+networks or speech.
+
+Observed after the retained-tail change: the regression passed along with 339
+related capture, processing, history, and engine tests. The native public JFK
+fixture retained its original connection across a 100 ms release trim and
+returned final text in 644 ms. This measures the public fixture, not the user's
+microphone or a guaranteed provider deadline.
+
+The installed latency-fixed app retained Microphone and Accessibility grants
+across a rebuild with the same Developer ID and bundle identifier. A Linux
+follow-up ran 2,302 tests: 2,301 passed, and the meeting-capsule golden group
+reported its two remaining changed images. All 34 changed Linux renders were
+reviewed and committed; no post-refresh full Linux passing run is claimed.

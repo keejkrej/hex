@@ -336,6 +336,7 @@ pub struct Transcribed {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Source {
     Stream,
+    Gateway,
     Offline,
     /// The stream could not be used; the reason is logged with the result.
     Fallback(String),
@@ -345,6 +346,7 @@ impl Source {
     pub fn label(&self) -> &str {
         match self {
             Self::Stream => "stream",
+            Self::Gateway => "gateway",
             Self::Offline => "offline",
             Self::Fallback(_) => "fallback",
         }
@@ -410,6 +412,7 @@ type Held = Arc<Mutex<Option<crate::transcription::models::TranscriptionSelectio
 /// A live stream for one capture. Feed it the capture's 16 kHz audio in order,
 /// then either [`TranscriptionEngine::finish`] or drop it to cancel.
 pub struct LiveStream {
+    gateway: Option<Box<super::gateway::Stream>>,
     id: u64,
     cancel: CancelToken,
     fed: usize,
@@ -421,6 +424,10 @@ pub struct LiveStream {
 }
 
 impl LiveStream {
+    pub(crate) fn is_gateway(&self) -> bool {
+        self.gateway.is_some()
+    }
+
     /// Total samples handed to the stream so far.
     pub fn fed(&self) -> usize {
         self.fed
@@ -440,6 +447,10 @@ impl LiveStream {
             return;
         }
         self.fed += samples.len();
+        if let Some(gateway) = &mut self.gateway {
+            gateway.feed(samples);
+            return;
+        }
         let _ = self.commands.send(Command::Feed {
             stream: self.id,
             samples: samples.to_vec(),
@@ -449,7 +460,7 @@ impl LiveStream {
 
 impl Drop for LiveStream {
     fn drop(&mut self) {
-        if !self.finished {
+        if !self.finished && self.gateway.is_none() {
             let _ = self.commands.send(Command::Cancel { stream: self.id });
         }
     }
@@ -459,6 +470,7 @@ impl Drop for LiveStream {
 /// side, so a stalled native stream cannot hold the paste forever, then bounds
 /// the job once the engine starts it, so a wedged run fails instead.
 pub struct PendingTranscript {
+    gateway: Option<Box<super::gateway::Pending>>,
     reply: Receiver<Reply>,
     cancel: CancelToken,
     stream_cancel: Option<CancelToken>,
@@ -469,7 +481,10 @@ pub struct PendingTranscript {
 }
 
 impl PendingTranscript {
-    pub fn wait(self) -> Result<Transcribed, String> {
+    pub fn wait(mut self) -> Result<Transcribed, String> {
+        if let Some(gateway) = self.gateway.take() {
+            return (*gateway).wait();
+        }
         let mut stream_deadline = self
             .stream_cancel
             .as_ref()
@@ -641,6 +656,18 @@ impl TranscriptionEngine {
 
     /// Opens a live stream when the loaded model can stream on this device.
     pub fn begin(&self) -> Option<LiveStream> {
+        if crate::labs::vercel_transcription() {
+            let partials = (self.live_text)().then(Partials::default);
+            return Some(LiveStream {
+                gateway: Some(Box::new(super::gateway::Stream::begin(partials.clone()))),
+                id: 0,
+                cancel: CancelToken::new(),
+                fed: 0,
+                finished: false,
+                commands: self.commands.clone(),
+                partials: partials.map(|p| (p, 0)),
+            });
+        }
         if !self.streams.load(Ordering::Acquire) {
             return None;
         }
@@ -656,6 +683,7 @@ impl TranscriptionEngine {
             })
             .ok()?;
         Some(LiveStream {
+            gateway: None,
             id,
             cancel,
             fed: 0,
@@ -693,7 +721,7 @@ impl TranscriptionEngine {
 
     /// Whether the loaded model can stream on its device.
     pub(crate) fn streams(&self) -> bool {
-        self.streams.load(Ordering::Acquire)
+        crate::labs::vercel_transcription() || self.streams.load(Ordering::Acquire)
     }
 
     /// Finishes a capture with its complete 16 kHz clip. Without a stream,
@@ -723,6 +751,35 @@ impl TranscriptionEngine {
         clip: Vec<f32>,
         offline: Offline,
     ) -> Result<PendingTranscript> {
+        if stream.as_ref().is_some_and(LiveStream::is_gateway)
+            || (stream.is_none() && crate::labs::vercel_transcription())
+        {
+            // The final clip owns the boundaries. Reopen if capture fed past
+            // its end, rather than letting words outside it enter the paste.
+            let gateway = stream.and_then(|mut stream| {
+                stream.finished = true;
+                stream.gateway.take()
+            });
+            let had_stream = gateway.is_some();
+            let pending = gateway.and_then(|gateway| (*gateway).finish_clip(&clip));
+            tracing::info!(
+                replayed = had_stream && pending.is_none(),
+                audio_samples = clip.len(),
+                "finishing gateway dictation"
+            );
+            let pending = pending
+                .unwrap_or_else(|| super::gateway::Stream::with_audio(None, clip.clone()).finish());
+            let (_, reply) = mpsc::channel();
+            return Ok(PendingTranscript {
+                gateway: Some(Box::new(pending)),
+                reply,
+                cancel: CancelToken::new(),
+                stream_cancel: None,
+                stalled: self.stalled.clone(),
+                job: self.deadlines.job_for(clip.len()),
+                stream_finish: self.deadlines.stream_finish,
+            });
+        }
         let (stream, stream_cancel) = match stream {
             Some(mut stream) => {
                 stream.finished = true;
@@ -766,6 +823,7 @@ impl TranscriptionEngine {
             }))
             .map_err(|_| eyre!("transcription engine stopped"))?;
         Ok(PendingTranscript {
+            gateway: None,
             reply: receiver,
             cancel,
             stream_cancel,
