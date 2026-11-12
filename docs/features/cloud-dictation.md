@@ -51,3 +51,10 @@ ignored `public_fixture_streams_through_gateway` sends a public Free Spoken
 Digit Dataset WAV through the native Rust transport with explicit credentials.
 A passing gateway fixture is a transport check, not a recognition-quality
 benchmark or proof of a physical shortcut, microphone, or target paste.
+
+Observed November 12, 2026 on macOS: the six gateway unit tests and the ignored
+public gateway fixture passed with the native Rust transport. Strict Clippy
+passed. A process-isolated selection of 616 engine, Labs, settings, translation,
+and Rune UI tests passed; the Linux-authoritative capsule golden comparison was
+excluded from that Mac run. The new Labs card was rendered and reviewed in light
+and dark on macOS. No physical microphone, shortcut, or target paste was tested.
