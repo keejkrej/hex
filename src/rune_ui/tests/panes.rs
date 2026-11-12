@@ -2071,6 +2071,10 @@ fn labs_lists_every_toggle_off_by_default() {
         ("lab-live-chapters", settings.labs.live_chapters),
         ("lab-vocabulary-biasing", settings.labs.vocabulary_biasing),
         ("lab-screen-vocabulary", settings.labs.screen_vocabulary),
+        (
+            "lab-vercel-transcription",
+            settings.labs.vercel_transcription,
+        ),
         ("lab-return-to-app", settings.labs.return_to_app),
         ("lab-speakers-only", settings.labs.speakers_only),
         (

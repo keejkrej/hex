@@ -1315,6 +1315,7 @@ pub fn log_launch() {
         playground = playground(),
         vocabulary_biasing = vocabulary_biasing(),
         screen_vocabulary = screen_vocabulary(),
+        vercel_transcription = vercel_transcription(),
         history_multi_select = history_multi_select(),
         "labs"
     );
@@ -1324,6 +1325,23 @@ pub fn log_launch() {
 mod tests {
     use super::cli::resolve;
     use super::*;
+
+    #[test]
+    fn vercel_transcription_is_an_explicit_opt_in() {
+        let mut settings = AppSettings::default();
+        assert!(!vercel_transcription_enabled(&settings.labs));
+        Feature::VercelTranscription.set(&mut settings, true);
+        assert!(vercel_transcription_enabled(&settings.labs));
+        assert_eq!(Feature::VercelTranscription.group(), Group::Dictation);
+        assert_eq!(
+            Feature::VercelTranscription.settings_key(),
+            "labs.vercel_transcription"
+        );
+        assert_eq!(
+            Feature::from_name("vercel-transcription"),
+            Some(Feature::VercelTranscription)
+        );
+    }
 
     #[test]
     fn graduated_features_answer_by_name() {
