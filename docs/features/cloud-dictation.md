@@ -78,3 +78,9 @@ related capture, processing, history, and engine tests. The native public JFK
 fixture retained its original connection across a 100 ms release trim and
 returned final text in 644 ms. This measures the public fixture, not the user's
 microphone or a guaranteed provider deadline.
+
+The installed latency-fixed app retained Microphone and Accessibility grants
+across a rebuild with the same Developer ID and bundle identifier. A Linux
+follow-up ran 2,302 tests: 2,301 passed, and the meeting-capsule golden group
+reported its two remaining changed images. All 34 changed Linux renders were
+reviewed and committed; no post-refresh full Linux passing run is claimed.

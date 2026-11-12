@@ -470,7 +470,7 @@ impl Drop for LiveStream {
 /// side, so a stalled native stream cannot hold the paste forever, then bounds
 /// the job once the engine starts it, so a wedged run fails instead.
 pub struct PendingTranscript {
-    gateway: Option<super::gateway::Pending>,
+    gateway: Option<Box<super::gateway::Pending>>,
     reply: Receiver<Reply>,
     cancel: CancelToken,
     stream_cancel: Option<CancelToken>,
@@ -483,7 +483,7 @@ pub struct PendingTranscript {
 impl PendingTranscript {
     pub fn wait(mut self) -> Result<Transcribed, String> {
         if let Some(gateway) = self.gateway.take() {
-            return gateway.wait();
+            return (*gateway).wait();
         }
         let mut stream_deadline = self
             .stream_cancel
@@ -771,7 +771,7 @@ impl TranscriptionEngine {
                 .unwrap_or_else(|| super::gateway::Stream::with_audio(None, clip.clone()).finish());
             let (_, reply) = mpsc::channel();
             return Ok(PendingTranscript {
-                gateway: Some(pending),
+                gateway: Some(Box::new(pending)),
                 reply,
                 cancel: CancelToken::new(),
                 stream_cancel: None,
