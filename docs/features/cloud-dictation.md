@@ -58,7 +58,10 @@ public gateway fixture passed with the native Rust transport. Strict Clippy
 passed. A process-isolated selection of 616 engine, Labs, settings, translation,
 and Rune UI tests passed; the Linux-authoritative capsule golden comparison was
 excluded from that Mac run. The new Labs card was rendered and reviewed in light
-and dark on macOS. No physical microphone, shortcut, or target paste was tested.
+and dark on macOS. The user subsequently confirmed live text and pasted output from the installed
+gateway build, and reported high release latency; History metadata showed a
+5.6 s outlier before the retained-tail fix. No agent-operated physical device
+test was run.
 
 Release latency: the stream retains 250 ms of audio until the final clip's exact
 boundary is known. Ordinary late releases trim that tail and keep the same
@@ -69,3 +72,9 @@ fixture `public_late_release_does_not_retranscribe_the_recording` checks the sam
 trim against the live provider and measures release-to-final latency. Provider
 latency varies; a fast benchmark does not establish an upper bound for real
 networks or speech.
+
+Observed after the retained-tail change: the regression passed along with 339
+related capture, processing, history, and engine tests. The native public JFK
+fixture retained its original connection across a 100 ms release trim and
+returned final text in 644 ms. This measures the public fixture, not the user's
+microphone or a guaranteed provider deadline.
